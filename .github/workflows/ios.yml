@@ -1,0 +1,52 @@
+name: iOS CI/CD Smart
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_expo:
+        description: "Build with Expo?"
+        required: true
+        default: "yes"
+
+jobs:
+  ios:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Expo CLI
+        run: npm install -g eas-cli
+
+      - name: Build iOS with Expo
+        if: ${{ github.event.inputs.build_expo == 'yes' }}
+        run: |
+          eas build --platform ios --non-interactive --profile production --json > build.json
+          BUILD_URL=$(cat build.json | jq -r '.[0].artifacts.buildUrl')
+          curl -L $BUILD_URL -o app.ipa
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Use existing IPA
+        if: ${{ github.event.inputs.build_expo != 'yes' }}
+        run: |
+          echo "Using existing IPA"
+          ls
+
+      - name: Install Fastlane
+        run: sudo gem install fastlane
+
+      - name: Upload to TestFlight
+        run: fastlane upload
+        env:
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
